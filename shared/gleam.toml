@@ -1,0 +1,9 @@
+name = "shared"
+version = "0.1.0"
+description = "Shared types and utilities for the Reddit simulator/engine"
+target = "erlang"
+
+[dependencies]
+gleam_stdlib = ">= 0.34.0 and < 2.0.0"
+
+

@@ -1,0 +1,8 @@
+[packages]
+gleam_erlang = "0.34.0"
+gleeunit = "1.6.1"
+gleam_otp = "0.16.1"
+gleam_stdlib = "0.65.0"
+sqlight = "1.0.3"
+engine = "0.1.0"
+esqlite = "0.9.0"
