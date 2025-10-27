@@ -1,1 +1,0 @@
--record(subreddit, {id :: integer(), name :: binary(), created_at :: integer()}).

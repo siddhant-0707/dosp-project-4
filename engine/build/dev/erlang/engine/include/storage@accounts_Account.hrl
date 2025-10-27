@@ -1,1 +1,0 @@
--record(account, {id :: integer(), username :: binary(), created_at :: integer()}).
