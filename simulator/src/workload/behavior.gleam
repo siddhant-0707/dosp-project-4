@@ -10,6 +10,8 @@ pub type Action {
   VoteComment(comment_id: Int, user_id: Int, value: Int)
   SendDM(from_user: Int, to_user: Int)
   CheckFeed(user_id: Int)
+  GetKarma(user_id: Int)
+  Repost(post_id: Int, user_id: Int)
 }
 
 /// Execute a user action and return success status
@@ -56,6 +58,20 @@ pub fn execute_action(action: Action) -> Result(Nil, String) {
 
     CheckFeed(user_id) -> {
       case engine_api.feed_home(user_id, 20, engine_api.Hot) {
+        Ok(_) -> Ok(Nil)
+        Error(e) -> Error(e)
+      }
+    }
+
+    GetKarma(user_id) -> {
+      case engine_api.get_karma(user_id) {
+        Ok(_) -> Ok(Nil)
+        Error(e) -> Error(e)
+      }
+    }
+
+    Repost(post_id, user_id) -> {
+      case engine_api.create_repost(post_id, user_id) {
         Ok(_) -> Ok(Nil)
         Error(e) -> Error(e)
       }

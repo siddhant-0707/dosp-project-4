@@ -157,6 +157,8 @@ fn action_name(action: behavior.Action) -> String {
     behavior.VoteComment(_, _, _) -> "vote_comment"
     behavior.SendDM(_, _) -> "send_dm"
     behavior.CheckFeed(_) -> "check_feed"
+    behavior.GetKarma(_) -> "get_karma"
+    behavior.Repost(_, _) -> "repost"
   }
 }
 

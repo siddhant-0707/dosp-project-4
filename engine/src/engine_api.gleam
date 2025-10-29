@@ -106,3 +106,18 @@ pub fn list_dms(
     dms.inbox(conn, recipient_id, limit, after_id)
   })
 }
+
+/// Get karma for an account
+pub fn get_karma(account_id: Int) -> Result(Int, String) {
+  db.with_engine_connection(fn(conn) { accounts.get_karma(conn, account_id) })
+}
+
+/// Create a repost
+pub fn create_repost(
+  original_post_id: Int,
+  author_id: Int,
+) -> Result(posts.Post, String) {
+  db.with_engine_connection(fn(conn) {
+    posts.create_repost(conn, original_post_id, author_id)
+  })
+}
