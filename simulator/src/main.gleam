@@ -1,18 +1,10 @@
-import engine_api
-import gleam/int
-import gleam/io
-import gleam/list
+import config
+import simulator
 
 pub fn main() {
-  // simple smoke test
-  let assert Ok(user) = engine_api.register("james")
-  let assert Ok(sr) = engine_api.create_subreddit("python")
-  let assert Ok(Nil) = engine_api.join_subreddit(user.id, sr.id)
-  let assert Ok(_post) =
-    engine_api.create_post(sr.id, user.id, "Hello", "First post about python")
-  let assert Ok(feed) = engine_api.feed_home(user.id, 10, engine_api.Hot)
-  io.println(
-    "simulator smoke test ok, posts in feed: "
-    <> int.to_string(list.length(feed)),
-  )
+  // Load configuration (default for now)
+  let cfg = config.default()
+
+  // Run simulator
+  simulator.run(cfg)
 }
