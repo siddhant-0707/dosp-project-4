@@ -49,7 +49,7 @@ pub fn default() -> Config {
     offline_mean_secs: 60.0,
     seed: 42,
     workers: 1,
-    // Changed to 1 to avoid SQLite concurrency issues
+    // Set to 1 to avoid SQLite concurrency issues
   )
 }
 
