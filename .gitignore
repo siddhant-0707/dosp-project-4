@@ -2,5 +2,7 @@
 
 /engine/build
 /simulator/build
+/simulator/metrics
+
 reddit.db
 reddit.db-journal

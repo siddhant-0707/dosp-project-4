@@ -1,5 +1,7 @@
+import argv
 import gleam/int
 import gleam/io
+import gleam/result
 
 /// Configuration for the simulator workload
 pub type Config {
@@ -36,7 +38,7 @@ pub type Config {
 /// Default configuration with reasonable values
 pub fn default() -> Config {
   Config(
-    num_users: 100,
+    num_users: 3,
     num_subreddits: 10,
     duration_secs: 60,
     zipf_s: 1.1,
@@ -54,12 +56,84 @@ pub fn default() -> Config {
 }
 
 /// Parse configuration from command-line arguments
-/// For now, returns default config (will be enhanced with actual CLI parsing)
-pub fn from_args(args: List(String)) -> Result(Config, String) {
-  // For now, just return defaults
-  // TODO: Parse actual arguments when gleam has a CLI parsing library
-  let _ = args
-  Ok(default())
+/// Usage: simulator [num_users] [num_subreddits] [duration_secs]
+pub fn from_args() -> Result(Config, String) {
+  case argv.load().arguments {
+    // No arguments - use defaults
+    [] -> Ok(default())
+    
+    // num_users only
+    [users] -> {
+      use u <- result.try(parse_int(users, "num_users"))
+      Ok(Config(..default(), num_users: u))
+    }
+    
+    // num_users num_subreddits
+    [users, subs] -> {
+      use u <- result.try(parse_int(users, "num_users"))
+      use s <- result.try(parse_int(subs, "num_subreddits"))
+      Ok(Config(..default(), num_users: u, num_subreddits: s))
+    }
+    
+    // num_users num_subreddits duration_secs
+    [users, subs, duration] -> {
+      use u <- result.try(parse_int(users, "num_users"))
+      use s <- result.try(parse_int(subs, "num_subreddits"))
+      use d <- result.try(parse_int(duration, "duration_secs"))
+      Ok(Config(..default(), num_users: u, num_subreddits: s, duration_secs: d))
+    }
+    
+    _ ->
+      Error(
+        "Too many arguments\nUsage: simulator [num_users] [num_subreddits] [duration_secs]",
+      )
+  }
+}
+
+fn parse_int(s: String, name: String) -> Result(Int, String) {pub fn main() -> Nil {
+  case argv.load().arguments {
+    [n, r] ->
+      case
+        {
+          use num_nodes <- result.try(parse_int(n))
+          use num_requests <- result.try(parse_int(r))
+          cli_run(num_nodes, num_requests)
+        }
+      {
+        Ok(_) -> Nil
+        Error(e) ->
+          io.println_error(
+            e
+            |> string.split("\n")
+            |> list.map(fn(line) { "Error: " <> line })
+            |> string.join("\n"),
+          )
+      }
+    _ -> usage()
+  }
+}
+  case int.parse(s) {
+    Ok(n) if n > 0 -> Ok(n)
+    Ok(_) -> Error(name <> " must be positive")
+    Error(_) -> Error("Invalid integer for " <> name <> ": " <> s)
+  }
+}
+
+
+/// Print usage information
+pub fn usage() -> Nil {
+  io.println("Usage: simulator [num_users] [num_subreddits] [duration_secs]")
+  io.println("")
+  io.println("Arguments:")
+  io.println("  num_users         Number of users to simulate (default: 3)")
+  io.println("  num_subreddits    Number of subreddits to create (default: 10)")
+  io.println("  duration_secs     Simulation duration in seconds (default: 60)")
+  io.println("")
+  io.println("Examples:")
+  io.println("  simulator              # Use all defaults (3 users)")
+  io.println("  simulator 100          # 100 users, default subreddits")
+  io.println("  simulator 100 20       # 100 users, 20 subreddits")
+  io.println("  simulator 100 20 30    # 100 users, 20 subreddits, 30 seconds")
 }
 
 /// Print configuration summary

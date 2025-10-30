@@ -150,7 +150,7 @@ fn execute_action_via_engine(
       let title = "Post by user " <> int.to_string(user_id)
       let body = "This is a post in subreddit " <> int.to_string(subreddit_id)
 
-      process.call(engine, waiting: 5000, sending: fn(reply) {
+      process.call(engine, waiting: 10000, sending: fn(reply) {
         engine_server.CreatePost(subreddit_id, user_id, title, body, reply)
       })
       |> result_to_nil

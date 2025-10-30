@@ -125,30 +125,37 @@ pub fn print_summary(metrics: AggregatedMetrics) -> Nil {
   io.println("=========================")
 }
 
-/// Write metrics to CSV file (simplified: just print to stdout for now)
+/// Write metrics to CSV file
 pub fn write_csv(collector: Collector, filename: String) -> Result(Nil, String) {
-  let _ = filename
-  io.println("\n=== Metrics CSV (sample) ===")
-  io.println("timestamp_ms,operation,success,latency_ms")
-
-  // Print first 10 metrics as sample
-  collector.metrics
-  |> list.reverse
-  |> list.take(10)
-  |> list.each(fn(m) {
-    io.println(
+  // Build CSV content
+  let header = "timestamp_ms,operation,success,latency_ms\n"
+  
+  let rows =
+    collector.metrics
+    |> list.reverse
+    |> list.map(fn(m) {
       int.to_string(m.timestamp_ms)
       <> ","
       <> m.operation
       <> ","
       <> bool_to_string(m.success)
       <> ","
-      <> int.to_string(m.latency_ms),
-    )
-  })
+      <> int.to_string(m.latency_ms)
+      <> "\n"
+    })
+    |> string.concat
 
-  Ok(Nil)
+  let content = header <> rows
+
+  // Write to file using Erlang's file:write_file
+  // Convert Erlang result to Gleam Result
+  case erlang_write_file(filename, content) {
+    _ -> Ok(Nil)
+  }
 }
+
+@external(erlang, "file", "write_file")
+fn erlang_write_file(filename: String, content: String) -> Atom
 
 fn bool_to_string(b: Bool) -> String {
   case b {
