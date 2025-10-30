@@ -61,20 +61,20 @@ pub fn from_args() -> Result(Config, String) {
   case argv.load().arguments {
     // No arguments - use defaults
     [] -> Ok(default())
-    
+
     // num_users only
     [users] -> {
       use u <- result.try(parse_int(users, "num_users"))
       Ok(Config(..default(), num_users: u))
     }
-    
+
     // num_users num_subreddits
     [users, subs] -> {
       use u <- result.try(parse_int(users, "num_users"))
       use s <- result.try(parse_int(subs, "num_subreddits"))
       Ok(Config(..default(), num_users: u, num_subreddits: s))
     }
-    
+
     // num_users num_subreddits duration_secs
     [users, subs, duration] -> {
       use u <- result.try(parse_int(users, "num_users"))
@@ -82,7 +82,7 @@ pub fn from_args() -> Result(Config, String) {
       use d <- result.try(parse_int(duration, "duration_secs"))
       Ok(Config(..default(), num_users: u, num_subreddits: s, duration_secs: d))
     }
-    
+
     _ ->
       Error(
         "Too many arguments\nUsage: simulator [num_users] [num_subreddits] [duration_secs]",
@@ -90,35 +90,13 @@ pub fn from_args() -> Result(Config, String) {
   }
 }
 
-fn parse_int(s: String, name: String) -> Result(Int, String) {pub fn main() -> Nil {
-  case argv.load().arguments {
-    [n, r] ->
-      case
-        {
-          use num_nodes <- result.try(parse_int(n))
-          use num_requests <- result.try(parse_int(r))
-          cli_run(num_nodes, num_requests)
-        }
-      {
-        Ok(_) -> Nil
-        Error(e) ->
-          io.println_error(
-            e
-            |> string.split("\n")
-            |> list.map(fn(line) { "Error: " <> line })
-            |> string.join("\n"),
-          )
-      }
-    _ -> usage()
-  }
-}
+fn parse_int(s: String, name: String) -> Result(Int, String) {
   case int.parse(s) {
     Ok(n) if n > 0 -> Ok(n)
     Ok(_) -> Error(name <> " must be positive")
     Error(_) -> Error("Invalid integer for " <> name <> ": " <> s)
   }
 }
-
 
 /// Print usage information
 pub fn usage() -> Nil {

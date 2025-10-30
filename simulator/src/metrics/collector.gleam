@@ -129,7 +129,7 @@ pub fn print_summary(metrics: AggregatedMetrics) -> Nil {
 pub fn write_csv(collector: Collector, filename: String) -> Result(Nil, String) {
   // Build CSV content
   let header = "timestamp_ms,operation,success,latency_ms\n"
-  
+
   let rows =
     collector.metrics
     |> list.reverse
