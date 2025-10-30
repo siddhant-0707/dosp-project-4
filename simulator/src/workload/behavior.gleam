@@ -81,23 +81,48 @@ pub fn execute_action(action: Action) -> Result(Nil, String) {
 
 /// Generate a random action for a user based on probabilities
 /// (Simplified: just cycle through actions for now)
+/// subreddit_popularity is a multiplier (higher for popular subreddits)
 pub fn generate_action(
   user_id: Int,
   user_subreddits: List(Int),
   action_counter: Int,
+  subreddit_popularity: Float,
 ) -> Action {
   let sub_id = case user_subreddits {
     [] -> 0
     [first, ..] -> first
   }
 
-  case action_counter % 6 {
-    0 -> CreatePost(sub_id, user_id)
-    1 -> CreateComment(1, user_id)
-    2 -> VotePost(1, user_id, 1)
-    3 -> VoteComment(1, user_id, 1)
-    4 -> SendDM(user_id, { user_id + 1 } % 100)
-    5 -> CheckFeed(user_id)
-    _ -> CheckFeed(user_id)
+  // Scale post frequency by subreddit popularity
+  // Popular subreddits (high multiplier) will have more post actions
+  let post_weight = float_to_int_approx(subreddit_popularity *. 3.0)
+  let total_weight = post_weight + 8
+  // 8 for other actions
+
+  case action_counter % total_weight {
+    n if n < post_weight -> CreatePost(sub_id, user_id)
+    _ -> {
+      // Other actions cycle through
+      case action_counter % 8 {
+        0 -> CreateComment(1, user_id)
+        1 -> VotePost(1, user_id, 1)
+        2 -> VoteComment(1, user_id, 1)
+        3 -> SendDM(user_id, { user_id + 1 } % 100)
+        4 -> CheckFeed(user_id)
+        5 -> GetKarma(user_id)
+        6 -> Repost(1, user_id)
+        _ -> CheckFeed(user_id)
+      }
+    }
   }
 }
+
+fn float_to_int_approx(f: Float) -> Int {
+  case f >=. 0.0 {
+    True -> truncate_float(f)
+    False -> 0 - truncate_float(0.0 -. f)
+  }
+}
+
+@external(erlang, "erlang", "trunc")
+fn truncate_float(f: Float) -> Int

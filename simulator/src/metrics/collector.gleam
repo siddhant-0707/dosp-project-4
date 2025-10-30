@@ -1,6 +1,7 @@
 import gleam/int
 import gleam/io
 import gleam/list
+import gleam/result
 import gleam/string
 
 /// Metric record for a single operation
@@ -28,6 +29,26 @@ pub type Collector {
 /// Create a new metrics collector
 pub fn new() -> Collector {
   Collector(metrics: [], start_time_ms: current_time_ms())
+}
+
+/// Merge multiple collectors into one
+pub fn merge(collectors: List(Collector)) -> Collector {
+  let all_metrics =
+    collectors
+    |> list.flat_map(fn(c) { c.metrics })
+
+  let earliest_start =
+    collectors
+    |> list.map(fn(c) { c.start_time_ms })
+    |> list.reduce(fn(a, b) {
+      case a < b {
+        True -> a
+        False -> b
+      }
+    })
+    |> result.unwrap(current_time_ms())
+
+  Collector(metrics: all_metrics, start_time_ms: earliest_start)
 }
 
 /// Record a metric
