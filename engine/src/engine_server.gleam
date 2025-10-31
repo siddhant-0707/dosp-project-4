@@ -29,6 +29,11 @@ pub type EngineMessage {
     subreddit_id: Int,
     reply_to: Subject(Result(Nil, String)),
   )
+  LeaveSubreddit(
+    user_id: Int,
+    subreddit_id: Int,
+    reply_to: Subject(Result(Nil, String)),
+  )
 
   // Post operations
   CreatePost(
@@ -133,6 +138,15 @@ fn handle_message(
       let result =
         db.with_engine_connection(fn(conn) {
           memberships.join(conn, user_id, subreddit_id)
+        })
+      process.send(reply_to, result)
+      actor.continue(state)
+    }
+
+    LeaveSubreddit(user_id, subreddit_id, reply_to) -> {
+      let result =
+        db.with_engine_connection(fn(conn) {
+          memberships.leave(conn, user_id, subreddit_id)
         })
       process.send(reply_to, result)
       actor.continue(state)

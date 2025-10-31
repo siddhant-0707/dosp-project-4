@@ -231,6 +231,9 @@ fn action_name(action: behavior.Action) -> String {
     behavior.CheckFeed(_) -> "check_feed"
     behavior.GetKarma(_) -> "get_karma"
     behavior.Repost(_, _) -> "repost"
+    behavior.JoinSubreddit(_, _) -> "join_subreddit"
+    behavior.LeaveSubreddit(_, _) -> "leave_subreddit"
+    behavior.CreateSubreddit(_, _) -> "create_subreddit"
   }
 }
 

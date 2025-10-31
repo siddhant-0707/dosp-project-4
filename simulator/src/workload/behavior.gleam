@@ -12,6 +12,9 @@ pub type Action {
   CheckFeed(user_id: Int)
   GetKarma(user_id: Int)
   Repost(post_id: Int, user_id: Int)
+  JoinSubreddit(user_id: Int, subreddit_id: Int)
+  LeaveSubreddit(user_id: Int, subreddit_id: Int)
+  CreateSubreddit(user_id: Int, name: String)
 }
 
 /// Execute a user action and return success status
@@ -76,6 +79,27 @@ pub fn execute_action(action: Action) -> Result(Nil, String) {
         Error(e) -> Error(e)
       }
     }
+
+    JoinSubreddit(user_id, subreddit_id) -> {
+      case engine_api.join_subreddit(user_id, subreddit_id) {
+        Ok(_) -> Ok(Nil)
+        Error(e) -> Error(e)
+      }
+    }
+
+    LeaveSubreddit(user_id, subreddit_id) -> {
+      case engine_api.leave_subreddit(user_id, subreddit_id) {
+        Ok(_) -> Ok(Nil)
+        Error(e) -> Error(e)
+      }
+    }
+
+    CreateSubreddit(_user_id, name) -> {
+      case engine_api.create_subreddit(name) {
+        Ok(_) -> Ok(Nil)
+        Error(e) -> Error(e)
+      }
+    }
   }
 }
 
@@ -96,14 +120,14 @@ pub fn generate_action(
   // Scale post frequency by subreddit popularity
   // Popular subreddits (high multiplier) will have more post actions
   let post_weight = float_to_int_approx(subreddit_popularity *. 3.0)
-  let total_weight = post_weight + 8
-  // 8 for other actions
+  let total_weight = post_weight + 11
+  // 11 for other actions (including join/leave/create)
 
   case action_counter % total_weight {
     n if n < post_weight -> CreatePost(sub_id, user_id)
     _ -> {
       // Other actions cycle through
-      case action_counter % 8 {
+      case action_counter % 11 {
         0 -> CreateComment(1, user_id)
         1 -> VotePost(1, user_id, 1)
         2 -> VoteComment(1, user_id, 1)
@@ -111,6 +135,28 @@ pub fn generate_action(
         4 -> CheckFeed(user_id)
         5 -> GetKarma(user_id)
         6 -> Repost(1, user_id)
+        7 -> {
+          // Join a random subreddit (1-5)
+          let random_sub = { action_counter / 10 } % 5 + 1
+          JoinSubreddit(user_id, random_sub)
+        }
+        8 -> {
+          // Leave a subreddit they're in (if any)
+          case user_subreddits {
+            [] -> CheckFeed(user_id)
+            // No subs to leave
+            [first, ..] -> LeaveSubreddit(user_id, first)
+          }
+        }
+        9 -> {
+          // Create a new subreddit
+          let sub_name =
+            "sub_user"
+            <> int.to_string(user_id)
+            <> "_"
+            <> int.to_string(action_counter)
+          CreateSubreddit(user_id, sub_name)
+        }
         _ -> CheckFeed(user_id)
       }
     }
