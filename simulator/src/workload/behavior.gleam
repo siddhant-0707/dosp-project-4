@@ -113,38 +113,61 @@ pub fn generate_action(
   subreddit_popularity: Float,
 ) -> Action {
   let sub_id = case user_subreddits {
-    [] -> 0
+    [] -> 1
+    // Default to subreddit 1 if user has no subs
     [first, ..] -> first
+    // Just use first subreddit for simplicity
   }
 
-  // Scale post frequency by subreddit popularity
-  // Popular subreddits (high multiplier) will have more post actions
-  let post_weight = float_to_int_approx(subreddit_popularity *. 3.0)
-  let total_weight = post_weight + 11
-  // 11 for other actions (including join/leave/create)
+  // Simple round-robin through all action types to ensure diversity
+  // Apply Zipf distribution by giving popular subreddits more post actions
+  // But still cycle through all other action types
 
-  case action_counter % total_weight {
-    n if n < post_weight -> CreatePost(sub_id, user_id)
-    _ -> {
-      // Other actions cycle through
-      case action_counter % 11 {
-        0 -> CreateComment(1, user_id)
-        1 -> VotePost(1, user_id, 1)
-        2 -> VoteComment(1, user_id, 1)
+  let popularity_multiplier = float_to_int_approx(subreddit_popularity)
+
+  // Determine which action type based on round-robin with popularity bias for posts
+  // For popular subs (multiplier >= 2), do more posts
+  // Action pattern: for every 12 actions, do (multiplier) posts and 12-multiplier other actions
+  let cycle_length = 12
+  let post_slots = case popularity_multiplier {
+    n if n > 3 -> 3
+    n if n < 1 -> 1
+    n -> n
+  }
+
+  let action_slot = action_counter % cycle_length
+
+  // Generate a plausible post_id based on action_counter (posts created earlier)
+  // Use a small value to ensure we're targeting posts that likely exist
+  let estimated_post_id = case action_counter > 2 {
+    True -> { action_counter / 4 } + 1
+    False -> 1
+  }
+
+  case action_slot < post_slots {
+    True -> CreatePost(sub_id, user_id)
+    False -> {
+      // Cycle through other 11 action types evenly
+      // Map slots [post_slots..11] to action types [0..10]
+      let other_action_index = action_slot - post_slots
+
+      case other_action_index % 11 {
+        0 -> CreateComment(estimated_post_id, user_id)
+        1 -> VotePost(estimated_post_id, user_id, 1)
+        2 -> VoteComment(estimated_post_id, user_id, 1)
         3 -> SendDM(user_id, { user_id + 1 } % 100)
         4 -> CheckFeed(user_id)
         5 -> GetKarma(user_id)
-        6 -> Repost(1, user_id)
+        6 -> Repost(estimated_post_id, user_id)
         7 -> {
-          // Join a random subreddit (1-5)
-          let random_sub = { action_counter / 10 } % 5 + 1
+          // Join a random subreddit (1-10)
+          let random_sub = { action_counter / 10 } % 10 + 1
           JoinSubreddit(user_id, random_sub)
         }
         8 -> {
           // Leave a subreddit they're in (if any)
           case user_subreddits {
             [] -> CheckFeed(user_id)
-            // No subs to leave
             [first, ..] -> LeaveSubreddit(user_id, first)
           }
         }

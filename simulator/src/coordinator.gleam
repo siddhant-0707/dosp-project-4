@@ -30,8 +30,8 @@ pub fn run_actor_based(cfg: config.Config) -> Nil {
   // Assign memberships via API
   let _ = assign_memberships_via_api(user_ids, subreddit_ids, subreddit_sizes)
 
-  // Calculate subreddit popularity
-  let subreddit_popularity =
+  // Calculate subreddit popularity (for future use in metrics)
+  let _subreddit_popularity =
     calculate_subreddit_popularity(
       list.map(subreddit_sizes, fn(pair) {
         let #(_, size) = pair
@@ -63,19 +63,17 @@ pub fn run_actor_based(cfg: config.Config) -> Nil {
 
   clients
   |> list.index_map(fn(client, idx) {
-    // Get user's subreddits (simplified: use first subreddit)
-    let user_subs = case subreddit_ids {
-      [] -> []
-      [first, ..] -> [first]
+    let user_id = case get_at(user_ids, idx) {
+      Ok(id) -> id
+      Error(_) -> idx + 1
     }
 
-    // Get popularity for this user's subreddit
-    let popularity = case
-      get_at(subreddit_popularity, idx % list.length(subreddit_popularity))
-    {
-      Ok(pop) -> pop
-      Error(_) -> 1.0
-    }
+    // Get user's actual subreddit memberships from the Zipf distribution
+    let user_subs = get_user_subreddits(user_id, subreddit_sizes, subreddit_ids)
+
+    // Get average popularity for this user's subreddits
+    let popularity =
+      calculate_user_popularity(user_subs, subreddit_sizes, subreddit_ids)
 
     // Send message to start actions (non-blocking)
     process.send(
@@ -194,4 +192,73 @@ fn calculate_subreddit_popularity(subreddit_sizes: List(Int)) -> List(Float) {
     let ratio = int.to_float(size) /. max_float
     1.0 +. ratio *. 2.0
   })
+}
+
+/// Get the subreddits a user is member of based on Zipf distribution
+fn get_user_subreddits(
+  user_id: Int,
+  subreddit_sizes: List(#(Int, Int)),
+  all_subreddit_ids: List(Int),
+) -> List(Int) {
+  subreddit_sizes
+  |> list.filter_map(fn(pair) {
+    let #(sub_idx, size) = pair
+    // User is member if their ID is < size for this subreddit
+    case user_id < size {
+      True -> {
+        case get_at(all_subreddit_ids, sub_idx) {
+          Ok(sub_id) -> Ok(sub_id)
+          Error(_) -> Error(Nil)
+        }
+      }
+      False -> Error(Nil)
+    }
+  })
+}
+
+/// Calculate average popularity for a user's subreddits
+fn calculate_user_popularity(
+  user_subs: List(Int),
+  subreddit_sizes: List(#(Int, Int)),
+  all_subreddit_ids: List(Int),
+) -> Float {
+  case user_subs {
+    [] -> 1.0
+    subs -> {
+      let total =
+        list.fold(subs, 0.0, fn(acc, sub_id) {
+          // Find the index of this subreddit
+          let idx = find_subreddit_index(sub_id, all_subreddit_ids, 0)
+          // Get its size
+          let size = case get_at(subreddit_sizes, idx) {
+            Ok(#(_, s)) -> s
+            Error(_) -> 1
+          }
+          acc +. int.to_float(size)
+        })
+
+      let count = int.to_float(list.length(subs))
+      let avg_size = total /. count
+
+      // Normalize to 1.0-3.0 range (assuming max ~20 users for small test)
+      1.0 +. { avg_size /. 20.0 } *. 2.0
+    }
+  }
+}
+
+/// Find the index of a subreddit ID in the list
+fn find_subreddit_index(
+  sub_id: Int,
+  subreddit_ids: List(Int),
+  current_idx: Int,
+) -> Int {
+  case subreddit_ids {
+    [] -> 0
+    [first, ..rest] -> {
+      case first == sub_id {
+        True -> current_idx
+        False -> find_subreddit_index(sub_id, rest, current_idx + 1)
+      }
+    }
+  }
 }

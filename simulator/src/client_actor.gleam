@@ -159,21 +159,21 @@ fn execute_action_via_engine(
     behavior.CreateComment(post_id, user_id) -> {
       let body = "Comment by user " <> int.to_string(user_id)
 
-      process.call(engine, waiting: 1000, sending: fn(reply) {
+      process.call(engine, waiting: 2000, sending: fn(reply) {
         engine_server.CreateComment(post_id, None, user_id, body, reply)
       })
       |> result_to_nil
     }
 
     behavior.VotePost(post_id, user_id, value) -> {
-      process.call(engine, waiting: 1000, sending: fn(reply) {
+      process.call(engine, waiting: 2000, sending: fn(reply) {
         engine_server.VotePost(post_id, user_id, value, reply)
       })
       |> result_flatten
     }
 
     behavior.VoteComment(comment_id, user_id, value) -> {
-      process.call(engine, waiting: 1000, sending: fn(reply) {
+      process.call(engine, waiting: 2000, sending: fn(reply) {
         engine_server.VoteComment(comment_id, user_id, value, reply)
       })
       |> result_flatten
