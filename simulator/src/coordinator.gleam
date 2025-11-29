@@ -84,7 +84,7 @@ pub fn run_actor_based(cfg: config.Config) -> Nil {
 
   // Step 6: Wait for clients to complete and write their metrics
   io.println("Waiting for clients to complete...")
-  process.sleep(15_000)
+  process.sleep(600_000)
   // Wait 15 seconds for actions to complete and metrics to be written
 
   // Step 7: Clients have written their individual metrics files

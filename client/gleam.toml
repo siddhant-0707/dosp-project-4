@@ -1,0 +1,12 @@
+name = "reddit_client"
+version = "0.1.0"
+description = "Reddit Clone CLI Client in Gleam"
+target = "erlang"
+
+[dependencies]
+gleam_stdlib = ">= 0.34.0 and < 1.0.0"
+gleam_erlang = ">= 0.25.0 and < 2.0.0"
+gleam_http = ">= 3.0.0 and < 4.0.0"
+gleam_httpc = ">= 2.0.0 and < 3.0.0"
+gleam_json = ">= 0.7.0 and < 2.0.0"
+argv = ">= 1.0.0 and < 2.0.0"

@@ -150,7 +150,7 @@ fn execute_action_via_engine(
       let title = "Post by user " <> int.to_string(user_id)
       let body = "This is a post in subreddit " <> int.to_string(subreddit_id)
 
-      process.call(engine, waiting: 10_000, sending: fn(reply) {
+      process.call(engine, waiting: 60_000, sending: fn(reply) {
         engine_server.CreatePost(subreddit_id, user_id, title, body, reply)
       })
       |> result_to_nil
@@ -159,21 +159,21 @@ fn execute_action_via_engine(
     behavior.CreateComment(post_id, user_id) -> {
       let body = "Comment by user " <> int.to_string(user_id)
 
-      process.call(engine, waiting: 2000, sending: fn(reply) {
+      process.call(engine, waiting: 60_000, sending: fn(reply) {
         engine_server.CreateComment(post_id, None, user_id, body, reply)
       })
       |> result_to_nil
     }
 
     behavior.VotePost(post_id, user_id, value) -> {
-      process.call(engine, waiting: 2000, sending: fn(reply) {
+      process.call(engine, waiting: 60_000, sending: fn(reply) {
         engine_server.VotePost(post_id, user_id, value, reply)
       })
       |> result_flatten
     }
 
     behavior.VoteComment(comment_id, user_id, value) -> {
-      process.call(engine, waiting: 2000, sending: fn(reply) {
+      process.call(engine, waiting: 60_000, sending: fn(reply) {
         engine_server.VoteComment(comment_id, user_id, value, reply)
       })
       |> result_flatten
@@ -182,49 +182,49 @@ fn execute_action_via_engine(
     behavior.SendDM(from_user, to_user) -> {
       let body = "Message from " <> int.to_string(from_user)
 
-      process.call(engine, waiting: 1000, sending: fn(reply) {
+      process.call(engine, waiting: 60_000, sending: fn(reply) {
         engine_server.SendDM(from_user, to_user, body, None, reply)
       })
       |> result_to_nil
     }
 
     behavior.CheckFeed(user_id) -> {
-      process.call(engine, waiting: 1000, sending: fn(reply) {
+      process.call(engine, waiting: 60_000, sending: fn(reply) {
         engine_server.GetHomeFeed(user_id, 20, "hot", reply)
       })
       |> result_to_nil
     }
 
     behavior.GetKarma(user_id) -> {
-      process.call(engine, waiting: 1000, sending: fn(reply) {
+      process.call(engine, waiting: 60_000, sending: fn(reply) {
         engine_server.GetKarma(user_id, reply)
       })
       |> result_to_nil
     }
 
     behavior.Repost(post_id, user_id) -> {
-      process.call(engine, waiting: 1000, sending: fn(reply) {
+      process.call(engine, waiting: 60_000, sending: fn(reply) {
         engine_server.CreateRepost(post_id, user_id, reply)
       })
       |> result_to_nil
     }
 
     behavior.JoinSubreddit(user_id, subreddit_id) -> {
-      process.call(engine, waiting: 1000, sending: fn(reply) {
+      process.call(engine, waiting: 60_000, sending: fn(reply) {
         engine_server.JoinSubreddit(user_id, subreddit_id, reply)
       })
       |> result_flatten
     }
 
     behavior.LeaveSubreddit(user_id, subreddit_id) -> {
-      process.call(engine, waiting: 1000, sending: fn(reply) {
+      process.call(engine, waiting: 60_000, sending: fn(reply) {
         engine_server.LeaveSubreddit(user_id, subreddit_id, reply)
       })
       |> result_flatten
     }
 
     behavior.CreateSubreddit(_user_id, name) -> {
-      process.call(engine, waiting: 1000, sending: fn(reply) {
+      process.call(engine, waiting: 60_000, sending: fn(reply) {
         engine_server.CreateSubreddit(name, reply)
       })
       |> result_to_nil

@@ -1,8 +1,6 @@
-/project-description.txt
-
 /engine/build
 /simulator/build
-# /simulator/metrics
+/simulator/metrics
 
 reddit.db
 reddit.db-journal

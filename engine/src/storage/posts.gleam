@@ -15,9 +15,11 @@ pub type Post {
     created_at: Int,
     is_repost: Bool,
     original_post_id: Option(Int),
+    signature: Option(String),
   )
 }
 
+/// Create post without signature (legacy support)
 pub fn create(
   conn: sqlight.Connection,
   subreddit_id: Int,
@@ -25,8 +27,21 @@ pub fn create(
   title: String,
   body: String,
 ) -> Result(Post, String) {
+  create_with_signature(conn, subreddit_id, author_id, title, body, option.None)
+}
+
+/// Create post with optional digital signature
+pub fn create_with_signature(
+  conn: sqlight.Connection,
+  subreddit_id: Int,
+  author_id: Int,
+  title: String,
+  body: String,
+  signature: Option(String),
+) -> Result(Post, String) {
   let sql =
-    "insert into posts(subreddit_id, author_id, title, body, created_at, is_repost, original_post_id) values (?, ?, ?, ?, strftime('%s','now')*1000, 0, NULL) returning id, subreddit_id, author_id, title, body, score, created_at, is_repost, original_post_id;"
+    "insert into posts(subreddit_id, author_id, title, body, created_at, is_repost, original_post_id, signature) values (?, ?, ?, ?, strftime('%s','now')*1000, 0, NULL, ?) returning id, subreddit_id, author_id, title, body, score, created_at, is_repost, original_post_id, signature;"
+  let sig = sqlight.nullable(sqlight.text, signature)
   let decoder = post_decoder()
   case
     sqlight.query(
@@ -37,6 +52,7 @@ pub fn create(
         sqlight.int(author_id),
         sqlight.text(title),
         sqlight.text(body),
+        sig,
       ],
       expecting: decoder,
     )
@@ -66,7 +82,7 @@ fn build_and_query(
   let placeholders =
     subreddit_ids |> list.map(fn(_) { "?" }) |> string.join(", ")
   let sql =
-    "select id, subreddit_id, author_id, title, body, score, created_at, is_repost, original_post_id from posts where subreddit_id in ("
+    "select id, subreddit_id, author_id, title, body, score, created_at, is_repost, original_post_id, signature from posts where subreddit_id in ("
     <> placeholders
     <> ") order by score desc, created_at desc limit ?"
   let args =
@@ -74,6 +90,29 @@ fn build_and_query(
   let decoder = post_decoder()
   case sqlight.query(sql, on: conn, with: args, expecting: decoder) {
     Ok(posts) -> Ok(posts)
+    Error(e) -> Error(error_to_string(e))
+  }
+}
+
+/// Get a single post by ID
+pub fn by_id(
+  conn: sqlight.Connection,
+  post_id: Int,
+) -> Result(Option(Post), String) {
+  let sql =
+    "select id, subreddit_id, author_id, title, body, score, created_at, is_repost, original_post_id, signature from posts where id = ?"
+  let decoder = post_decoder()
+  case
+    sqlight.query(
+      sql,
+      on: conn,
+      with: [sqlight.int(post_id)],
+      expecting: decoder,
+    )
+  {
+    Ok([post]) -> Ok(option.Some(post))
+    Ok([]) -> Ok(option.None)
+    Ok(_) -> Error("Expected 0 or 1 rows")
     Error(e) -> Error(error_to_string(e))
   }
 }
@@ -102,9 +141,9 @@ pub fn create_repost(
     )
   {
     Ok([#(subreddit_id, title, body)]) -> {
-      // Create the repost
+      // Create the repost (no signature for reposts)
       let sql =
-        "insert into posts(subreddit_id, author_id, title, body, created_at, is_repost, original_post_id) values (?, ?, ?, ?, strftime('%s','now')*1000, 1, ?) returning id, subreddit_id, author_id, title, body, score, created_at, is_repost, original_post_id;"
+        "insert into posts(subreddit_id, author_id, title, body, created_at, is_repost, original_post_id, signature) values (?, ?, ?, ?, strftime('%s','now')*1000, 1, ?, NULL) returning id, subreddit_id, author_id, title, body, score, created_at, is_repost, original_post_id, signature;"
       let decoder = post_decoder()
       case
         sqlight.query(
@@ -141,6 +180,7 @@ fn post_decoder() {
   use c <- decode.field(6, decode.int)
   use is_rep <- decode.field(7, decode.int)
   use orig <- decode.field(8, decode.optional(decode.int))
+  use sig <- decode.field(9, decode.optional(decode.string))
   decode.success(Post(
     id: id,
     subreddit_id: s,
@@ -151,6 +191,7 @@ fn post_decoder() {
     created_at: c,
     is_repost: is_rep != 0,
     original_post_id: orig,
+    signature: sig,
   ))
 }
 
