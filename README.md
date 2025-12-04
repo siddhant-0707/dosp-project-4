@@ -2,6 +2,10 @@
 
 A production-ready Reddit-like social media platform built entirely in **Gleam** with Ed25519 digital signatures for post authentication.
 
+## Team Members
+- Siddhant Chauhan (49734369)
+- Shreyansh Nayak (11552257)
+
 ## Project Overview
 
 This project implements a fully functional Reddit-like engine with:
@@ -84,7 +88,7 @@ cd client
 # Check server health
 gleam run -m main -- health
 
-# Run comprehensive signature demo
+# Run comprehensive demo
 gleam run -m main -- demo
 ```
 
