@@ -6,6 +6,7 @@ import gleam/http.{Get, Post}
 import gleam/int
 import gleam/io
 import gleam/json
+import gleam/list
 import gleam/option.{type Option, None, Some}
 import signature
 import storage/accounts
@@ -33,7 +34,9 @@ pub fn handle_request(req: Request, _ctx: Context) -> Response {
     ["api", "accounts", "username", username] ->
       handle_get_account_by_username(req, username)
     ["api", "accounts", id, "public_key"] -> handle_get_public_key(req, id)
-    ["api", "subreddits"] -> handle_create_subreddit(req)
+    ["api", "subreddits"] -> handle_subreddits(req)
+    ["api", "subreddits", "search", query] ->
+      handle_search_subreddits(req, query)
     ["api", "subreddits", id, "join"] -> handle_join_subreddit(req, id)
     ["api", "subreddits", id, "leave"] -> handle_leave_subreddit(req, id)
     ["api", "posts"] -> handle_create_post(req)
@@ -124,16 +127,60 @@ fn handle_get_public_key(_req: Request, id_str: String) -> Response {
   }
 }
 
-fn handle_create_subreddit(req: Request) -> Response {
-  use json <- require_json(req)
-  use name <- require_string(json, "name")
-
-  case engine_api.create_subreddit(name) {
-    Ok(sr) -> {
-      io.println("[REST API] Created subreddit: " <> sr.name)
-      json_response(201, subreddit_to_json(sr))
+fn handle_subreddits(req: Request) -> Response {
+  case req.method {
+    Get -> {
+      // List all subreddits
+      case engine_api.list_subreddits() {
+        Ok(subreddits) -> {
+          io.println(
+            "[REST API] Listed "
+            <> int.to_string(list.length(subreddits))
+            <> " subreddits",
+          )
+          json_response(
+            200,
+            json.object([
+              #("subreddits", json.array(subreddits, subreddit_to_json)),
+            ]),
+          )
+        }
+        Error(e) -> error_response(500, e)
+      }
     }
-    Error(e) -> error_response(400, e)
+    Post -> {
+      // Create subreddit
+      use json <- require_json(req)
+      use name <- require_string(json, "name")
+
+      case engine_api.create_subreddit(name) {
+        Ok(sr) -> {
+          io.println("[REST API] Created subreddit: " <> sr.name)
+          json_response(201, subreddit_to_json(sr))
+        }
+        Error(e) -> error_response(400, e)
+      }
+    }
+    _ -> wisp.method_not_allowed([Get, Post])
+  }
+}
+
+fn handle_search_subreddits(_req: Request, query: String) -> Response {
+  case engine_api.search_subreddits(query) {
+    Ok(subreddits) -> {
+      io.println(
+        "[REST API] Search for '"
+        <> query
+        <> "' found "
+        <> int.to_string(list.length(subreddits))
+        <> " subreddits",
+      )
+      json_response(
+        200,
+        json.object([#("subreddits", json.array(subreddits, subreddit_to_json))]),
+      )
+    }
+    Error(e) -> error_response(500, e)
   }
 }
 

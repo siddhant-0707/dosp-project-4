@@ -51,6 +51,18 @@ pub fn create_subreddit(name: String) -> Result(subreddits.Subreddit, String) {
   db.with_engine_connection(fn(conn) { subreddits.create(conn, name) })
 }
 
+/// Search for subreddits by name (case-insensitive partial match)
+pub fn search_subreddits(
+  query: String,
+) -> Result(List(subreddits.Subreddit), String) {
+  db.with_engine_connection(fn(conn) { subreddits.search(conn, query) })
+}
+
+/// List all subreddits
+pub fn list_subreddits() -> Result(List(subreddits.Subreddit), String) {
+  db.with_engine_connection(fn(conn) { subreddits.list_all(conn) })
+}
+
 pub fn join_subreddit(account_id: Int, subreddit_id: Int) -> Result(Nil, String) {
   db.with_engine_connection(fn(conn) {
     memberships.join(conn, account_id, subreddit_id)

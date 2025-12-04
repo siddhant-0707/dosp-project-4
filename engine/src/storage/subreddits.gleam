@@ -26,6 +26,49 @@ pub fn create(
   }
 }
 
+/// Search for subreddits by name (case-insensitive partial match)
+pub fn search(
+  conn: sqlight.Connection,
+  query: String,
+) -> Result(List(Subreddit), String) {
+  let sql =
+    "select id, name, created_at from subreddits where lower(name) like lower(?) order by name limit 50;"
+  let search_pattern = "%" <> query <> "%"
+  let decoder = {
+    use id <- decode.field(0, decode.int)
+    use n <- decode.field(1, decode.string)
+    use created <- decode.field(2, decode.int)
+    decode.success(Subreddit(id: id, name: n, created_at: created))
+  }
+  case
+    sqlight.query(
+      sql,
+      on: conn,
+      with: [sqlight.text(search_pattern)],
+      expecting: decoder,
+    )
+  {
+    Ok(results) -> Ok(results)
+    Error(e) -> Error(error_to_string(e))
+  }
+}
+
+/// Get all subreddits (limited to 100)
+pub fn list_all(conn: sqlight.Connection) -> Result(List(Subreddit), String) {
+  let sql =
+    "select id, name, created_at from subreddits order by created_at desc limit 100;"
+  let decoder = {
+    use id <- decode.field(0, decode.int)
+    use n <- decode.field(1, decode.string)
+    use created <- decode.field(2, decode.int)
+    decode.success(Subreddit(id: id, name: n, created_at: created))
+  }
+  case sqlight.query(sql, on: conn, with: [], expecting: decoder) {
+    Ok(results) -> Ok(results)
+    Error(e) -> Error(error_to_string(e))
+  }
+}
+
 fn error_to_string(e: sqlight.Error) -> String {
   case e {
     sqlight.SqlightError(_, message, _) -> message

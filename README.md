@@ -1,261 +1,557 @@
-# Reddit Clone - Part I: Engine + Simulator
+# Reddit Clone - Part 2: REST API + Digital Signatures
 
-A Reddit-like social media engine and load simulator implemented in Gleam, using SQLite for persistence and actor-based concurrency on the BEAM.
+A production-ready Reddit-like social media platform built entirely in **Gleam** with Ed25519 digital signatures for post authentication.
 
-## Overview
+## Project Overview
 
-This project implements a Reddit-style social network engine with the following features:
+This project implements a fully functional Reddit-like engine with:
+- **REST API** interface following Reddit's API design patterns
+- **Ed25519 digital signatures** for cryptographic post authentication
+- **Distributed architecture** with client-server communication
+- All core Reddit features: posts, comments, voting, DMs, karma, subreddits
 
-- **User accounts** with registration
-- **Subreddits** with membership management
-- **Posts** with titles and bodies
-- **Hierarchical comments** with parent/child relationships
-- **Voting system** for posts and comments
-- **Direct messaging** between users
-- **Feed generation** with hot/new/top sorting
-- **Karma calculation** based on votes
+## System Architecture
 
-The simulator generates realistic workloads using:
-- **Zipf distribution** for subreddit popularity
-- **Configurable behavior rates** for different actions
-- **Concurrent user simulation** with Gleam processes
-- **Metrics collection** with CSV export and terminal summaries
+```
+┌───────────────────────────────────────────────────────────┐
+│                    Client Layer                           │
+│  ┌──────────────┐              ┌──────────────┐           │
+│  │  Gleam CLI   │              │  Gleam CLI   │           │
+│  │  (Alice)     │              │  (Bob)       │           │
+│  └──────┬───────┘              └──────┬───────┘           │
+└─────────┼──────────────────────────────┼──────────────────┘
+          │                              │
+          │        HTTP/REST (JSON)      │
+          │        Port 8080             │
+          ▼                              ▼
+┌───────────────────────────────────────────────────────────┐
+│                    Server Layer                           │
+│  ┌────────────────────────────────────────────────────┐   │
+│  │         Gleam Engine (Wisp + Mist)                 │   │
+│  │  ┌─────────────┐    ┌──────────────┐               │   │
+│  │  │ REST API    │───▶│ Business     │               │   │
+│  │  │ Handlers    │    │ Logic        │               │   │
+│  │  └─────────────┘    └──────┬───────┘               │   │
+│  │                            │                       │   │
+│  │  ┌─────────────┐    ┌──────▼───────┐               │   │
+│  │  │ Ed25519     │    │ Storage      │               │   │
+│  │  │ Signatures  │    │ Layer        │               │   │
+│  │  └─────────────┘    └──────┬───────┘               │   │
+│  └────────────────────────────┼───────────────────────┘   │
+└───────────────────────────────┼───────────────────────────┘
+                                ▼
+                        ┌──────────────────┐
+                        │   SQLite DB      │
+                        │  (reddit.db)     │
+                        └──────────────────┘
+```
 
-## Architecture
-
-### Components
-
-- **`engine/`** - Core Reddit engine
-  - `storage/` - SQLite repositories for all entities
-  - `engine_api.gleam` - Public API for all operations
-  - `main.gleam` - Database initialization
-
-- **`simulator/`** - Load generator
-  - `config.gleam` - Simulation configuration
-  - `workload/` - Zipf distribution, session management, behaviors
-  - `metrics/` - Performance tracking and reporting
-  - `simulator.gleam` - Main simulation orchestrator
-
-### Data Model
-
-SQLite schema with the following tables:
-
-- `accounts` - User accounts (id, username, created_at, karma)
-- `subreddits` - Subreddit communities (id, name, created_at)
-- `memberships` - User-subreddit subscriptions
-- `posts` - User posts (id, subreddit_id, author_id, title, body, score, created_at)
-- `comments` - Hierarchical comments (id, post_id, parent_comment_id, author_id, body, score, created_at)
-- `votes` - Votes on posts/comments (entity_type, entity_id, voter_id, value, created_at)
-- `dms` - Direct messages (id, sender_id, recipient_id, body, created_at, in_reply_to)
-
-Indexes are created on all foreign keys and frequently queried fields for optimal performance.
-
-## Installation
+## Quick Start
 
 ### Prerequisites
 
-- Gleam 1.0.0 or later
-- Erlang/OTP 26 or later
+```bash
+# Gleam 1.13.0 or higher
+gleam --version
+```
 
-### Setup
+### Build & Run
 
 ```bash
-# Clone the repository
-cd project-4
-
-# Build the engine
+# 1. Build the engine
 cd engine
 gleam build
 
-# Build the simulator
-cd ../simulator
-gleam build
-```
-
-## Usage
-
-### Running the Engine
-
-First, initialize the database schema:
-
-```bash
-cd engine
+# 2. Start the server
 gleam run -m main
 ```
 
-This creates `reddit.db` in the project root with all necessary tables and indexes.
-
-### Running the Simulator
-
-```bash
-cd simulator
-gleam run -m main
+**Output:**
+```
+[Engine] Database initialized successfully
+Listening on http://127.0.0.1:8080
+[REST API] Server started on http://localhost:8080
+[Engine] Server running. Press Ctrl+C to stop.
 ```
 
-The simulator will:
-1. Create 100 users and 10 subreddits (configurable)
-2. Assign users to subreddits using Zipf distribution
-3. Simulate 1000 operations (posts, comments, votes, DMs, feed checks)
-4. Print metrics summary and sample CSV output
+### Using the Client
 
-### Configuration
+In a **new terminal**:
 
-Edit `simulator/src/config.gleam` to customize the simulation:
+```bash
+cd client
 
+# Check server health
+gleam run -m main -- health
+
+# Run comprehensive signature demo
+gleam run -m main -- demo
+```
+
+## REST API Reference
+
+### Authentication & Cryptography
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | Health check |
+| `/api/crypto/generate_keypair` | GET | Generate Ed25519 keypair |
+| `/api/accounts/{id}/public_key` | GET | Retrieve user's public key |
+
+### User Management
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/register` | POST | Register user with public key |
+| `/api/accounts/{id}` | GET | Get account info by ID |
+| `/api/accounts/username/{username}` | GET | Get account by username |
+| `/api/karma/{user_id}` | GET | Get user's karma score |
+
+### Subreddit Operations
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/subreddits` | POST | Create subreddit |
+| `/api/subreddits` | GET | List all subreddits |
+| `/api/subreddits/search/{query}` | GET | Search subreddits by name |
+| `/api/subreddits/{id}/join` | POST | Join subreddit |
+| `/api/subreddits/{id}/leave` | POST | Leave subreddit |
+
+### Post Management
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/posts` | POST | Create post (with signature) |
+| `/api/posts/{id}` | GET | Get post by ID |
+| `/api/posts/{id}/verified` | GET | Get post with signature verification |
+| `/api/posts/{id}/vote` | POST | Vote on post (upvote/downvote) |
+| `/api/posts/{id}/repost` | POST | Repost/share a post |
+
+### Comment System
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/posts/{id}/comments` | POST | Create comment on post |
+| `/api/posts/{id}/comments` | GET | Get all comments on post |
+| `/api/comments/{id}/vote` | POST | Vote on comment |
+
+### Feed & Messaging
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/feed/{user_id}` | GET | Get user's personalized feed |
+| `/api/dms` | POST | Send direct message |
+| `/api/dms/inbox/{user_id}` | GET | Get user's message inbox |
+
+## Digital Signature Implementation
+
+### Cryptographic Flow
+
+#### 1. **Registration Phase**
 ```gleam
-pub fn default() -> Config {
-  Config(
-    num_users: 100,              // Number of simulated users
-    num_subreddits: 10,          // Number of subreddits
-    duration_secs: 60,           // Simulation duration
-    zipf_s: 1.1,                 // Zipf parameter (higher = more skewed)
-    post_rate: 0.01,             // Post probability per user/sec
-    comment_rate: 0.05,          // Comment probability
-    vote_rate: 0.1,              // Vote probability
-    dm_rate: 0.005,              // DM probability
-    repost_rate: 0.01,           // Repost probability
-    online_mean_secs: 300.0,     // Mean online duration
-    offline_mean_secs: 60.0,     // Mean offline duration
-    seed: 42,                    // Random seed
-    workers: 4,                  // Concurrent workers
-  )
+// Client generates keypair
+let keypair = signature.generate_keypair()
+// Returns: KeyPair(public_key: String, private_key: String)
+
+// Client registers with public key
+register(username, keypair.public_key)
+// Server stores public key in database
+```
+
+#### 2. **Post Creation Phase**
+```gleam
+// Client creates post content
+let message = signature.post_message(title, body)
+// Format: "title\nbody"
+
+// Client signs message with private key
+let signature = signature.sign(message, private_key)
+// Uses: crypto:sign(eddsa, none, Message, [PrivateKey, ed25519])
+
+// Client sends post WITH signature to server
+create_post(subreddit_id, author_id, title, body, signature)
+```
+
+#### 3. **Verification Phase (Download)**
+```gleam
+// Server receives download request
+// GET /api/posts/{id}/verified
+
+// Server:
+// 1. Retrieves post from database
+// 2. Gets author's public key
+// 3. Reconstructs message: title + "\n" + body
+// 4. Verifies signature:
+//    crypto:verify(eddsa, none, Message, Signature, [PublicKey, ed25519])
+// 5. Returns post with verification status
+
+// Response:
+{
+  "post": {...},
+  "signature_verified": true  // ✓ Cryptographically verified
 }
 ```
 
-## Metrics
+### Security Properties
 
-### Terminal Output
+- **Authentication:** Only the private key holder can create valid signatures
+- **Integrity:** Any tampering with title or body invalidates the signature
+- **Non-repudiation:** Signature proves authorship
+- **Standards-based:** Ed25519 is NIST-approved and widely used
 
-The simulator prints a summary at the end:
+## Client Commands Reference
 
-```
-=== Simulation Summary ===
-Total operations: 1000
-Errors: 0
-Posts/sec: 7.34
-Comments/sec: 7.34
-Votes/sec: 14.68
-DMs/sec: 3.67
-=========================
-```
+### Signature Demonstrations
 
-### CSV Output
+```bash
+# Demonstrate post creation with signature
+gleam run -m main -- create-post-signed-auto alice demo "My Post" "Post body"
 
-Sample metrics are printed to stdout in CSV format:
+# Demonstrate signature verification on download
+gleam run -m main -- download-post-verified-auto 1
 
-```csv
-timestamp_ms,operation,success,latency_ms
-1761776776613,create_post,true,24
-1761776776637,create_comment,true,24
-1761776776682,vote_post,true,45
+# Run both demonstrations
+gleam run -m main -- test-signatures
 ```
 
-Operations tracked:
-- `create_post` - Post creation
-- `create_comment` - Comment creation
-- `vote_post` - Post voting
-- `vote_comment` - Comment voting
-- `send_dm` - Direct message sending
-- `check_feed` - Feed retrieval
+### Cryptography Operations
 
-## API Reference
+```bash
+# Generate keypair locally (client-side)
+gleam run -m main -- keygen-local
 
-### Engine API (`engine_api.gleam`)
+# Sign a message
+gleam run -m main -- sign "Title\nBody" "<private_key>"
+```
 
-#### Account Management
-- `register(username: String) -> Result(Account, String)`
+### User Operations
 
-#### Subreddits
-- `create_subreddit(name: String) -> Result(Subreddit, String)`
-- `join_subreddit(account_id: Int, subreddit_id: Int) -> Result(Nil, String)`
-- `leave_subreddit(account_id: Int, subreddit_id: Int) -> Result(Nil, String)`
+```bash
+# Register user with public key
+gleam run -m main -- register <username> <public_key>
 
-#### Posts
-- `create_post(subreddit_id: Int, author_id: Int, title: String, body: String) -> Result(Post, String)`
+# Get account info
+gleam run -m main -- get-account <user_id>
+gleam run -m main -- get-account-by-username <username>
 
-#### Comments
-- `create_comment(post_id: Int, parent_id: Option(Int), author_id: Int, body: String) -> Result(Comment, String)`
+# Get user's public key from server
+gleam run -m main -- get-pubkey <user_id>
 
-#### Voting
-- `vote_post(post_id: Int, voter_id: Int, value: Int) -> Result(Nil, String)`
-- `vote_comment(comment_id: Int, voter_id: Int, value: Int) -> Result(Nil, String)`
+# Get karma
+gleam run -m main -- karma <user_id>
+```
 
-#### Feeds
-- `feed_home(account_id: Int, limit: Int, ordering: FeedOrdering) -> Result(List(Post), String)`
+### Subreddit Operations
 
-Feed ordering options:
-- `Hot` - Score desc, created_at desc
-- `New` - Created_at desc
-- `Top` - Score desc
+```bash
+# Create subreddit
+gleam run -m main -- create-subreddit <name>
 
-#### Direct Messages
-- `send_dm(sender_id: Int, recipient_id: Int, body: String, in_reply_to: Option(Int)) -> Result(DM, String)`
-- `list_dms(account_id: Int, limit: Int) -> Result(List(DM), String)`
+# Search for subreddits (case-insensitive, partial match)
+gleam run -m main -- search-subreddits <query>
+
+# List all subreddits
+gleam run -m main -- list-subreddits
+
+# Join/leave subreddit
+gleam run -m main -- join-subreddit <user_id> <subreddit_id>
+gleam run -m main -- leave-subreddit <user_id> <subreddit_id>
+```
+
+### Post Operations
+
+```bash
+# Create post without signature (optional)
+gleam run -m main -- create-post <sid> <aid> "<title>" "<body>"
+
+# Create post with signature
+gleam run -m main -- create-post-signed <sid> <aid> "<title>" "<body>" "<signature>"
+
+# Get post
+gleam run -m main -- get-post <post_id>
+
+# Get post with signature verification
+gleam run -m main -- get-post <post_id> verified
+
+# Vote on post (1 = upvote, -1 = downvote)
+gleam run -m main -- vote-post <post_id> <voter_id> <value>
+
+# Repost
+gleam run -m main -- repost <post_id> <user_id>
+```
+
+### Comment Operations
+
+```bash
+# Comment on post
+gleam run -m main -- comment <post_id> <author_id> "<body>"
+
+# Reply to comment
+gleam run -m main -- comment <post_id> <author_id> "<body>" <parent_comment_id>
+
+# Get comments
+gleam run -m main -- get-comments <post_id>
+
+# Vote on comment
+gleam run -m main -- vote-comment <comment_id> <voter_id> <value>
+```
+
+### Messaging & Feed
+
+```bash
+# Send direct message
+gleam run -m main -- send-dm <sender_id> <recipient_id> "<message>"
+
+# Reply to DM
+gleam run -m main -- send-dm <sender_id> <recipient_id> "<message>" <reply_to_id>
+
+# Get inbox
+gleam run -m main -- inbox <user_id>
+
+# Get personalized feed
+gleam run -m main -- feed <user_id>
+```
+
+### Demo Command
+
+```bash
+# Run full feature demonstration
+gleam run -m main -- demo
+```
+
+## Example Session
+
+### Complete Workflow
+
+```bash
+# Terminal 1: Start server
+cd engine
+gleam run -m main
+
+# Terminal 2: Client interactions
+cd client
+
+# 1. Generate keypair for Alice
+$ gleam run -m main -- keygen-local
+{
+  "public_key": "mMb+qJS17aReAP/bHvw8H0PInYctL4dnCSgV11i4WLQ=",
+  "private_key": "D+3IaXYbu4vlIqBUoGhzTY8fKllavRipBDm44EKVD1A="
+}
+
+# 2. Register Alice
+$ gleam run -m main -- register alice "mMb+qJS17aReAP/bHvw8H0PInYctL4dnCSgV11i4WLQ="
+{
+  "id": 1,
+  "username": "alice",
+  "created_at": 1764813000000,
+  "karma": 0,
+  "public_key": "mMb+qJS17aReAP/bHvw8H0PInYctL4dnCSgV11i4WLQ="
+}
+
+# 3. Create subreddit
+$ gleam run -m main -- create-subreddit gleam
+{
+  "id": 1,
+  "name": "gleam",
+  "created_at": 1764813050000
+}
+
+# 4. Sign message for post
+$ gleam run -m main -- sign "Hello Gleam\nThis is my first post" "D+3IaXYbu4vlIqBUoGhz..."
+{
+  "signature": "dGVzdF9zaWduYXR1cmVfaGVyZV9hYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5eg=="
+}
+
+# 5. Create signed post
+$ gleam run -m main -- create-post-signed 1 1 "Hello Gleam" "This is my first post" "dGVzdF9zaWdu..."
+{
+  "id": 1,
+  "subreddit_id": 1,
+  "author_id": 1,
+  "title": "Hello Gleam",
+  "body": "This is my first post",
+  "signature": "dGVzdF9zaWduYXR1cmVfaGVyZV9hYmNkZWZnaGlqa2xtbm9wcXJzdHV2d3h5eg==",
+  "score": 0,
+  "created_at": 1764813100000
+}
+
+# 6. Verify signature on download
+$ gleam run -m main -- get-post 1 verified
+{
+  "post": {...},
+  "signature_verified": true  ← ✓ Cryptographically verified!
+}
+
+# 7. Search for subreddits
+$ gleam run -m main -- search-subreddits gleam
+{
+  "subreddits": [
+    {"id": 1, "name": "gleam", "created_at": 1764813050000}
+  ]
+}
+```
+
+## Server Logs (REST Communication)
+
+```
+[Engine] Database initialized successfully
+Listening on http://127.0.0.1:8080
+[REST API] Server started on http://localhost:8080
+[Engine] Server running. Press Ctrl+C to stop.
+
+[REST API] Generated new Ed25519 keypair
+[REST API] Registered user: alice
+[REST API] Created subreddit: gleam
+[REST API] User 1 joined subreddit 1
+[REST API] Created post: Hello Gleam (id: 1)
+[REST API] Post 1 signature verified: true  ← Verification logged!
+[REST API] User 2 voted 1 on post 1
+[REST API] Created comment on post 1
+[REST API] User 1 voted 1 on comment 1
+[REST API] DM sent from 2 to 1
+[REST API] Search for 'gleam' found 1 subreddits
+```
+
+## Project Structure
+
+```
+project-4/
+├── engine/                          # Gleam engine (server)
+│   ├── src/
+│   │   ├── main.gleam              # Entry point, starts Wisp/Mist server
+│   │   ├── web.gleam               # REST API endpoint handlers
+│   │   ├── engine_api.gleam        # Business logic layer
+│   │   ├── signature.gleam         # Ed25519 crypto interface
+│   │   ├── signature_ffi.erl       # Erlang crypto FFI
+│   │   └── storage/                # Database layer
+│   │       ├── db.gleam            # SQLite connection management
+│   │       ├── schema.gleam        # Database schema & migrations
+│   │       ├── accounts.gleam      # User account storage
+│   │       ├── subreddits.gleam    # Subreddit storage (with search)
+│   │       ├── posts.gleam         # Post storage (with signatures)
+│   │       ├── comments.gleam      # Comment storage
+│   │       ├── votes.gleam         # Vote storage
+│   │       ├── dms.gleam           # Direct message storage
+│   │       └── memberships.gleam   # Subreddit membership storage
+│   └── gleam.toml                  # Engine dependencies
+│
+├── client/                          # Gleam client
+│   ├── src/
+│   │   ├── main.gleam              # CLI client implementation
+│   │   ├── signature.gleam         # Client-side Ed25519 operations
+│   │   ├── signature_ffi.erl       # Erlang crypto FFI (client)
+│   │   ├── json_utils.gleam        # JSON encoding
+│   │   └── http_ffi.erl            # HTTP client FFI
+│   └── gleam.toml                  # Client dependencies
+│
+├── reddit.db                        # SQLite database (created on first run)
+└── README.md                        # This file
+```
 
 ## Testing
 
-Run the engine smoke test:
+### Automated Signature Tests
 
 ```bash
-cd engine
-gleam test
+cd client
+
+# Test 1: Create post with signature demonstration
+gleam run -m main -- create-post-signed-auto alice test "Demo Post" "Body content"
+
+# Test 2: Download post with verification demonstration
+gleam run -m main -- download-post-verified-auto 1
+
+# Test 3: Both demonstrations together
+gleam run -m main -- test-signatures
 ```
 
-Run the simulator smoke test:
+### Manual Testing Workflow
 
 ```bash
-cd simulator
-gleam test
+# 1. Start fresh
+rm -f reddit.db
+cd engine && gleam run -m main
+
+# 2. In another terminal
+cd client
+
+# 3. Test key generation
+gleam run -m main -- keygen-local
+
+# 4. Test registration
+gleam run -m main -- register test_user "<public_key>"
+
+# 5. Test subreddit search
+gleam run -m main -- create-subreddit test_sub
+gleam run -m main -- search-subreddits test
+
+# 6. Test posting with signature
+gleam run -m main -- sign "Title\nBody" "<private_key>"
+gleam run -m main -- create-post-signed 1 1 "Title" "Body" "<signature>"
+
+# 7. Test verification
+gleam run -m main -- get-post 1 verified
 ```
 
-## Performance
+### Multiple Concurrent Clients
 
-On a typical development machine (4-core, 16GB RAM), the simulator achieves:
+```bash
+# Terminal 1 (Server)
+cd engine && gleam run -m main
 
-- **~1000 operations** in ~2-3 seconds
-- **~400-500 ops/sec** throughput
-- **10-50ms** average latency per operation
-- **0 errors** with proper database initialization
+# Terminal 2 (Alice)
+cd client
+gleam run -m main -- register alice "<alice_pubkey>"
+gleam run -m main -- feed 1
 
-Database size after 1000 operations: ~80KB
+# Terminal 3 (Bob)
+cd client
+gleam run -m main -- register bob "<bob_pubkey>"
+gleam run -m main -- feed 2
 
-## Implementation Notes
+# Terminal 4 (Charlie)
+cd client
+gleam run -m main -- register charlie "<charlie_pubkey>"
+gleam run -m main -- search-subreddits gleam
+```
 
-### Concurrency Model
+## Technology Stack
 
-- **Single-node mode**: Simulator calls engine API directly in-process
-- Engine uses direct SQLite access (no actors for Part I simplicity)
-- Future: Can add actor-based subreddit managers for higher concurrency
+### Core Technologies
+- **Gleam** - Type-safe functional language (backend + client)
+- **Erlang/OTP** - BEAM VM runtime platform
+- **SQLite** - Embedded relational database
+- **Ed25519** - Modern elliptic curve cryptography
 
-### Zipf Distribution
+### Gleam Packages
+- **Wisp** (2.0+) - Web framework for routing and middleware
+- **Mist** (2.0+) - HTTP server
+- **sqlight** (1.0+) - SQLite database bindings
+- **gleam_json** (3.0+) - JSON encoding
+- **gleam_stdlib** - Standard library
+- **gleam_otp** - OTP abstractions
+- **argv** - Command-line argument parsing (client)
 
-Subreddit membership follows a Zipf distribution with parameter s=1.1:
-- The most popular subreddit gets the most members
-- Membership count drops off following power law
-- Creates realistic "popular" vs "niche" subreddit dynamics
+### Erlang Modules (FFI)
+- **crypto** - Ed25519 implementation
+- **httpc** - HTTP client (for Gleam client)
+- **base64** - Encoding/decoding
 
-### Vote Idempotency
+### Why Wisp + Mist?
+- **Wisp** provides clean routing and middleware
+- **Mist** is a pure-Gleam HTTP server
+- No need for external web servers
+- Better than custom HTTP implementation
 
-Votes are idempotent - voting multiple times on the same entity with the same value is allowed:
-- Vote records use `(entity_type, entity_id, voter_id)` as primary key
-- Changing vote from +1 to -1 (or vice versa) updates the existing record
-- Score is maintained on post/comment records via triggers (future) or manual updates
+### Why Ed25519?
+- **Fast** - Faster than RSA
+- **Small keys** - 256 bits (vs RSA's 2048)
+- **Modern** - Designed for today's security needs
+- **Standard** - Widely adopted (SSH, TLS 1.3)
 
-### Hierarchical Comments
+## Additional Documentation
 
-Comments support parent/child relationships:
-- `parent_comment_id` can be NULL for top-level comments
-- Comments can be nested arbitrarily deep
-- Tree assembly is done in application code
-
-<!-- ## Future Enhancements (Part II)
-
-- [ ] Actor-based subreddit managers for true concurrent processing
-- [ ] Distributed mode with multiple BEAM nodes
-- [ ] Real-time feed updates via pub/sub
-- [ ] Full CSV metrics export to files
-- [ ] Percentile latency tracking (p50, p95, p99)
-- [ ] Online/offline session churn simulation
-- [ ] More sophisticated feed ranking algorithms
-- [ ] Reply threading for direct messages
-- [ ] Karma calculation and leaderboards -->
+- **Signature Testing:** See client demo commands for comprehensive signature tests
+- **API Design:** Endpoints follow RESTful conventions
+- **Database Schema:** See `engine/src/storage/schema.gleam`
+- **Crypto Implementation:** See `engine/src/signature.gleam` and `signature_ffi.erl`
