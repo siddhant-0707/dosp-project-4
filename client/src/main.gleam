@@ -1,75 +1,65 @@
 /// Reddit Clone CLI Client in Gleam
-/// Communicates with the engine via REST API
+/// Communicates with the engine via REST API using Erlang httpc
 import argv
-import gleam/http
-import gleam/http/request
-import gleam/http/response
-import gleam/httpc
+import gleam/bit_array
 import gleam/int
 import gleam/io
-import gleam/json
-import gleam/list
-import gleam/option.{None, Some}
-import gleam/result
-import gleam/string
+import json_utils as json
 
 const api_base_url = "http://localhost:8080/api"
 
 pub type ClientError {
   HttpError(String)
-  JsonError(String)
-  InvalidArgs(String)
 }
+
+// External Erlang HTTP functions
+@external(erlang, "http_ffi", "http_get")
+fn http_get_ffi(url: String) -> Result(BitArray, #(Int, BitArray))
+
+@external(erlang, "http_ffi", "http_post")
+fn http_post_ffi(
+  url: String,
+  body: BitArray,
+) -> Result(BitArray, #(Int, BitArray))
 
 /// Make HTTP GET request
 fn http_get(endpoint: String) -> Result(String, ClientError) {
   let url = api_base_url <> endpoint
-  let req =
-    request.new()
-    |> request.set_method(http.Get)
-    |> request.set_host("localhost")
-    |> request.set_port(8080)
-    |> request.set_path(endpoint)
-    |> request.prepend_header("accept", "application/json")
-
-  case httpc.send(req) {
-    Ok(resp) -> {
-      case resp.status {
-        200 | 201 -> Ok(resp.body)
-        _ ->
-          Error(HttpError(
-            "HTTP " <> int.to_string(resp.status) <> ": " <> resp.body,
-          ))
+  case http_get_ffi(url) {
+    Ok(body) -> {
+      case bit_array.to_string(body) {
+        Ok(s) -> Ok(s)
+        Error(_) -> Error(HttpError("Invalid UTF-8 in response"))
       }
     }
-    Error(e) -> Error(HttpError("Request failed: " <> string.inspect(e)))
+    Error(#(status, body)) -> {
+      let body_str = case bit_array.to_string(body) {
+        Ok(s) -> s
+        Error(_) -> "<binary>"
+      }
+      Error(HttpError("HTTP " <> int.to_string(status) <> ": " <> body_str))
+    }
   }
 }
 
-/// Make HTTP POST request with JSON body
+/// Make HTTP POST request
 fn http_post(endpoint: String, body: String) -> Result(String, ClientError) {
   let url = api_base_url <> endpoint
-  let req =
-    request.new()
-    |> request.set_method(http.Post)
-    |> request.set_host("localhost")
-    |> request.set_port(8080)
-    |> request.set_path(endpoint)
-    |> request.set_body(body)
-    |> request.prepend_header("content-type", "application/json")
-    |> request.prepend_header("accept", "application/json")
-
-  case httpc.send(req) {
-    Ok(resp) -> {
-      case resp.status {
-        200 | 201 -> Ok(resp.body)
-        _ ->
-          Error(HttpError(
-            "HTTP " <> int.to_string(resp.status) <> ": " <> resp.body,
-          ))
+  let body_bits = bit_array.from_string(body)
+  case http_post_ffi(url, body_bits) {
+    Ok(resp_body) -> {
+      case bit_array.to_string(resp_body) {
+        Ok(s) -> Ok(s)
+        Error(_) -> Error(HttpError("Invalid UTF-8 in response"))
       }
     }
-    Error(e) -> Error(HttpError("Request failed: " <> string.inspect(e)))
+    Error(#(status, resp_body)) -> {
+      let body_str = case bit_array.to_string(resp_body) {
+        Ok(s) -> s
+        Error(_) -> "<binary>"
+      }
+      Error(HttpError("HTTP " <> int.to_string(status) <> ": " <> body_str))
+    }
   }
 }
 
@@ -110,12 +100,7 @@ pub fn get_public_key(id: Int) -> Result(String, ClientError) {
 }
 
 pub fn create_subreddit(name: String) -> Result(String, ClientError) {
-  let body =
-    json.to_string(
-      json.object([
-        #("name", json.string(name)),
-      ]),
-    )
+  let body = json.to_string(json.object([#("name", json.string(name))]))
   http_post("/subreddits", body)
 }
 
@@ -123,26 +108,8 @@ pub fn join_subreddit(
   user_id: Int,
   subreddit_id: Int,
 ) -> Result(String, ClientError) {
-  let body =
-    json.to_string(
-      json.object([
-        #("user_id", json.int(user_id)),
-      ]),
-    )
+  let body = json.to_string(json.object([#("user_id", json.int(user_id))]))
   http_post("/subreddits/" <> int.to_string(subreddit_id) <> "/join", body)
-}
-
-pub fn leave_subreddit(
-  user_id: Int,
-  subreddit_id: Int,
-) -> Result(String, ClientError) {
-  let body =
-    json.to_string(
-      json.object([
-        #("user_id", json.int(user_id)),
-      ]),
-    )
-  http_post("/subreddits/" <> int.to_string(subreddit_id) <> "/leave", body)
 }
 
 pub fn create_post(
@@ -187,76 +154,8 @@ pub fn vote_post(
   http_post("/posts/" <> int.to_string(post_id) <> "/vote", body)
 }
 
-pub fn create_comment(
-  post_id: Int,
-  author_id: Int,
-  body: String,
-  parent_id: Int,
-) -> Result(String, ClientError) {
-  let json_body =
-    json.to_string(
-      json.object([
-        #("author_id", json.int(author_id)),
-        #("body", json.string(body)),
-        #("parent_id", json.int(parent_id)),
-      ]),
-    )
-  http_post("/posts/" <> int.to_string(post_id) <> "/comments", json_body)
-}
-
-pub fn get_comments(post_id: Int) -> Result(String, ClientError) {
-  http_get("/posts/" <> int.to_string(post_id) <> "/comments")
-}
-
-pub fn vote_comment(
-  comment_id: Int,
-  voter_id: Int,
-  value: Int,
-) -> Result(String, ClientError) {
-  let body =
-    json.to_string(
-      json.object([
-        #("voter_id", json.int(voter_id)),
-        #("value", json.int(value)),
-      ]),
-    )
-  http_post("/comments/" <> int.to_string(comment_id) <> "/vote", body)
-}
-
-pub fn repost(post_id: Int, author_id: Int) -> Result(String, ClientError) {
-  let body =
-    json.to_string(
-      json.object([
-        #("author_id", json.int(author_id)),
-      ]),
-    )
-  http_post("/posts/" <> int.to_string(post_id) <> "/repost", body)
-}
-
 pub fn get_feed(user_id: Int) -> Result(String, ClientError) {
   http_get("/feed/" <> int.to_string(user_id))
-}
-
-pub fn send_dm(
-  sender_id: Int,
-  recipient_id: Int,
-  body: String,
-  in_reply_to: Int,
-) -> Result(String, ClientError) {
-  let json_body =
-    json.to_string(
-      json.object([
-        #("sender_id", json.int(sender_id)),
-        #("recipient_id", json.int(recipient_id)),
-        #("body", json.string(body)),
-        #("in_reply_to", json.int(in_reply_to)),
-      ]),
-    )
-  http_post("/dms", json_body)
-}
-
-pub fn get_inbox(user_id: Int) -> Result(String, ClientError) {
-  http_get("/dms/inbox/" <> int.to_string(user_id))
 }
 
 pub fn get_karma(user_id: Int) -> Result(String, ClientError) {
@@ -293,12 +192,6 @@ pub fn main() {
         _, _ -> error("Invalid IDs")
       }
     }
-    ["leave-subreddit", uid_str, sid_str] -> {
-      case int.parse(uid_str), int.parse(sid_str) {
-        Ok(uid), Ok(sid) -> run_command(leave_subreddit(uid, sid))
-        _, _ -> error("Invalid IDs")
-      }
-    }
     ["create-post", sid_str, aid_str, title, body] -> {
       case int.parse(sid_str), int.parse(aid_str) {
         Ok(sid), Ok(aid) -> run_command(create_post(sid, aid, title, body, ""))
@@ -323,18 +216,6 @@ pub fn main() {
         _, _, _ -> error("Invalid arguments")
       }
     }
-    ["comment", pid_str, aid_str, body] -> {
-      case int.parse(pid_str), int.parse(aid_str) {
-        Ok(pid), Ok(aid) -> run_command(create_comment(pid, aid, body, 0))
-        _, _ -> error("Invalid IDs")
-      }
-    }
-    ["get-comments", pid_str] -> {
-      case int.parse(pid_str) {
-        Ok(pid) -> run_command(get_comments(pid))
-        Error(_) -> error("Invalid post ID")
-      }
-    }
     ["feed", uid_str] -> {
       case int.parse(uid_str) {
         Ok(uid) -> run_command(get_feed(uid))
@@ -355,8 +236,6 @@ fn run_command(result: Result(String, ClientError)) {
   case result {
     Ok(body) -> io.println(body)
     Error(HttpError(msg)) -> error(msg)
-    Error(JsonError(msg)) -> error(msg)
-    Error(InvalidArgs(msg)) -> error(msg)
   }
 }
 
@@ -378,14 +257,11 @@ fn print_usage() {
   io.println("  get-pubkey <id>                     - Get user's public key")
   io.println("  create-subreddit <name>             - Create subreddit")
   io.println("  join-subreddit <uid> <sid>          - Join subreddit")
-  io.println("  leave-subreddit <uid> <sid>         - Leave subreddit")
   io.println("  create-post <sid> <aid> <title> <body> - Create post")
   io.println(
-    "  get-post <id> [verified]            - Get post (optionally verify signature)",
+    "  get-post <id> [verified]            - Get post (optionally verify)",
   )
   io.println("  vote-post <pid> <vid> <value>       - Vote on post")
-  io.println("  comment <pid> <aid> <body>          - Comment on post")
-  io.println("  get-comments <pid>                  - Get comments")
   io.println("  feed <uid>                          - Get user feed")
   io.println("  karma <uid>                         - Get user karma")
 }
