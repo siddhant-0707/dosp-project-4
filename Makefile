@@ -1,4 +1,4 @@
-PARAMS = 200 50 120
+PARAMS = demo
 
 all: engine simulator
 
@@ -15,4 +15,4 @@ simulator: $(shell find simulator -type f)
 run: clean engine simulator
 	mkdir -p simulator/metrics
 	cd engine && gleam run -m main
-	cd simulator && gleam run -m sim_main $(PARAMS)
+# 	cd client && gleam run -m main -- $(PARAMS)
