@@ -1,7 +1,6 @@
 /// Signature module for Ed25519 digital signatures
 /// Uses Erlang's public_key module for cryptographic operations
 import gleam/bit_array
-import gleam/result
 
 /// Key pair for Ed25519 signing
 pub type KeyPair {
